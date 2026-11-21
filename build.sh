@@ -25,8 +25,26 @@ echo "==> Adding our packages"
 echo >> "$PROFILE/packages.x86_64"
 grep -v '^\s*#' "$HERE/packages.txt" | grep -v '^\s*$' >> "$PROFILE/packages.x86_64"
 
-echo "==> Copying our config files into the system"
-cp -r "$HERE/overlay/." "$PROFILE/airootfs/"
+echo "==> Adding our config files into the system"
+AIR="$PROFILE/airootfs"
+mkdir -p "$AIR/etc/sddm.conf.d" "$AIR/etc/sysusers.d" "$AIR/etc/tmpfiles.d"
+
+# Log straight into the desktop
+cat > "$AIR/etc/sddm.conf.d/10-autologin.conf" <<'CONF'
+[Autologin]
+User=liveuser
+Session=plasma
+CONF
+
+# Create the "liveuser" account
+cat > "$AIR/etc/sysusers.d/liveuser.conf" <<'CONF'
+u liveuser 1000 "Live User" /home/liveuser /bin/bash
+CONF
+
+# Create that user's home folder
+cat > "$AIR/etc/tmpfiles.d/liveuser.conf" <<'CONF'
+d /home/liveuser 0700 liveuser liveuser -
+CONF
 
 echo "==> Setting up services"
 SYS="$PROFILE/airootfs/etc/systemd/system"
