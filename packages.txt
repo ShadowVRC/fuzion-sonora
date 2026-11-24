@@ -1,0 +1,91 @@
+# Packages added on top of Arch's standard live-ISO list.
+# Lines starting with # are comments. One package per line.
+
+# --- Desktop: Hyprland (macOS-inspired) ---
+hyprland
+xorg-xwayland
+xdg-desktop-portal-hyprland
+xdg-desktop-portal-gtk
+hyprpolkitagent
+polkit
+hyprlock
+hypridle
+waybar
+nwg-dock-hyprland
+fuzzel
+mako
+swaybg
+grim
+slurp
+wl-clipboard
+cliphist
+brightnessctl
+zenity
+dconf
+
+# --- Login screen ---
+sddm
+xorg-server
+
+# --- Apps ---
+thunar
+gvfs
+tumbler
+foot
+firefox
+pavucontrol
+network-manager-applet
+blueman
+xdg-user-dirs
+xdg-utils
+
+# --- Network, Bluetooth, Audio ---
+networkmanager
+wpa_supplicant
+bluez
+bluez-utils
+pipewire
+pipewire-pulse
+pipewire-alsa
+pipewire-jack
+wireplumber
+
+# --- Look: icons, themes, fonts ---
+papirus-icon-theme
+adwaita-icon-theme
+gnome-themes-extra
+inter-font
+ttf-font-awesome
+ttf-jetbrains-mono
+noto-fonts
+noto-fonts-emoji
+ttf-liberation
+
+# --- Helpers for Windows app support ---
+libnotify
+cabextract
+unzip
+vulkan-tools
+curl
+
+# --- Graphics drivers (64-bit and 32-bit, needed for games) ---
+mesa
+lib32-mesa
+vulkan-icd-loader
+lib32-vulkan-icd-loader
+vulkan-radeon
+lib32-vulkan-radeon
+vulkan-intel
+lib32-vulkan-intel
+
+# --- Windows apps and games ---
+wine
+wine-mono
+wine-gecko
+winetricks
+steam
+gamemode
+lib32-gamemode
+
+# --- Works inside VirtualBox for testing ---
+virtualbox-guest-utils
