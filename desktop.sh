@@ -26,190 +26,242 @@ sed -i '/^\[options\]/a NoExtract = usr/share/backgrounds/* usr/share/wallpapers
   "$PROFILE/pacman.conf"
 
 # ---------------------------------------------------------------------------
-# 2. Which Hyprland syntax do we need? (Hyprland 0.53 changed how window rules are written)
+# 2. Hyprland: the main configuration (Hyprland 0.55 and newer reads Lua, not hyprland.conf)
 # ---------------------------------------------------------------------------
 HYPR_VER="$( { pacman -Si hyprland 2>/dev/null || true; } | awk -F': *' '/^Version/ {print $2; exit}' | sed 's/^[0-9]*://; s/-.*//' || true )"
-[ -n "$HYPR_VER" ] || HYPR_VER="0.53.0"
-echo "==> Hyprland version in the Arch repository: $HYPR_VER"
-if [ "$(printf '%s\n' 0.53.0 "$HYPR_VER" | sort -V | head -n1)" = "0.53.0" ]; then
-  WINDOW_RULES='windowrule = float on, match:class .*
-windowrule = center on, match:class .*
-layerrule = blur on, match:namespace waybar
-layerrule = ignore_alpha 0.2, match:namespace waybar
-layerrule = blur on, match:namespace launcher
-layerrule = ignore_alpha 0.2, match:namespace launcher
-layerrule = blur on, match:namespace notifications
-layerrule = ignore_alpha 0.2, match:namespace notifications
-layerrule = blur on, match:namespace nwg-dock.*
-layerrule = ignore_alpha 0.2, match:namespace nwg-dock.*'
-else
-  WINDOW_RULES='windowrulev2 = float, class:.*
-windowrulev2 = center, class:.*
-layerrule = blur, waybar
-layerrule = ignorealpha 0.2, waybar
-layerrule = blur, launcher
-layerrule = ignorealpha 0.2, launcher
-layerrule = blur, notifications
-layerrule = ignorealpha 0.2, notifications
-layerrule = blur, nwg-dock.*
-layerrule = ignorealpha 0.2, nwg-dock.*'
-fi
+echo "==> Hyprland version in the Arch repository: ${HYPR_VER:-unknown}"
 
-# ---------------------------------------------------------------------------
-# 3. Hyprland: the main configuration
-# ---------------------------------------------------------------------------
-echo "==> Writing Hyprland configuration"
-read -r -d '' HYPRCONF <<'HYPRCONF_EOF' || true
-# =====================================================================
-#  ArcOS Sonora - Hyprland configuration (made by Fuzion)
-#  Every new user gets a copy of this file in ~/.config/hypr/
-#  Lines starting with # are comments.
-# =====================================================================
+echo "==> Writing Hyprland configuration (Lua)"
+cat > "$CONF/hypr/hyprland.lua" <<'HYPRLUA_EOF'
+-- =====================================================================
+--  ArcOS Sonora - Hyprland configuration (made by Fuzion)
+--  Hyprland 0.55 and newer reads Lua. Every new user gets a copy of
+--  this file in ~/.config/hypr/   Lines starting with -- are comments.
+-- =====================================================================
 
-# Colors that change with dark / light mode (written by "arcos-theme")
-source = ~/.config/hypr/colors.conf
+-- Adds a shortcut only if this Hyprland version knows the action,
+-- so one unknown name can never break the whole configuration.
+local function bind_safe(keys, make_action, opts)
+    local ok, action = pcall(make_action)
+    if ok and action ~= nil then
+        pcall(hl.bind, keys, action, opts)
+    end
+end
 
-# --- Screens -----------------------------------------------------------
-# Use each screen's best resolution, placed automatically, no scaling.
-monitor = , preferred, auto, 1
+-- --- Screens -------------------------------------------------------------
+-- Every screen uses its best resolution, placed automatically.
+hl.monitor({
+    output = "",
+    mode = "preferred",
+    position = "auto",
+    scale = "auto",
+})
 
-# --- Programs ----------------------------------------------------------
-$terminal = foot
-$files    = thunar
-$browser  = firefox
-$launcher = fuzzel
-$mainMod  = SUPER
+-- --- Programs ------------------------------------------------------------
+local terminal    = "foot"
+local fileManager = "thunar"
+local browser     = "firefox"
+local launcher    = "fuzzel"
+local mainMod     = "SUPER"
 
-# --- Environment -------------------------------------------------------
-env = XCURSOR_THEME,Adwaita
-env = XCURSOR_SIZE,24
-env = XDG_CURRENT_DESKTOP,Hyprland
-env = XDG_SESSION_TYPE,wayland
-env = XDG_SESSION_DESKTOP,Hyprland
+-- --- Environment ---------------------------------------------------------
+hl.env("XCURSOR_THEME", "Adwaita")
+hl.env("XCURSOR_SIZE", "24")
+hl.env("XDG_CURRENT_DESKTOP", "Hyprland")
+hl.env("XDG_SESSION_TYPE", "wayland")
+hl.env("XDG_SESSION_DESKTOP", "Hyprland")
 
-# --- Programs that start automatically ---------------------------------
-exec-once = dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE
-exec-once = systemctl --user start hyprpolkitagent
-exec-once = xdg-user-dirs-update
-exec-once = arcos-theme apply                      # sets wallpaper + dark/light colors
-exec-once = mako                                   # notifications
-exec-once = waybar                                 # top bar
-exec-once = bash ~/.config/hypr/scripts/dock.sh    # bottom dock
-exec-once = nm-applet --indicator                  # Wi-Fi menu in the top bar
-exec-once = blueman-applet                         # Bluetooth menu in the top bar
-exec-once = wl-paste --type text --watch cliphist store
-exec-once = wl-paste --type image --watch cliphist store
-exec-once = hypridle                               # screen off / lock when idle
+-- --- Programs that start automatically -------------------------------------
+hl.on("hyprland.start", function()
+    hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE")
+    hl.exec_cmd("systemctl --user start hyprpolkitagent")
+    hl.exec_cmd("xdg-user-dirs-update")
+    hl.exec_cmd("arcos-theme apply")                       -- wallpaper + dark/light colors
+    hl.exec_cmd("mako")                                    -- notifications
+    hl.exec_cmd("waybar")                                  -- top bar
+    hl.exec_cmd("bash $HOME/.config/hypr/scripts/dock.sh") -- bottom dock
+    hl.exec_cmd("nm-applet --indicator")                   -- Wi-Fi menu in the top bar
+    hl.exec_cmd("blueman-applet")                          -- Bluetooth menu in the top bar
+    hl.exec_cmd("wl-paste --type text --watch cliphist store")
+    hl.exec_cmd("wl-paste --type image --watch cliphist store")
+    hl.exec_cmd("hypridle")                                -- screen off / lock when idle
+end)
 
-# --- Look ----------------------------------------------------------------
-general {
-    gaps_in = 5
-    gaps_out = 10
-    border_size = 1
-    col.active_border = rgba(3584e4cc)
-    col.inactive_border = $border_inactive
-    layout = dwindle
-    resize_on_border = true
-}
+-- --- Look ----------------------------------------------------------------
+-- (The border and shadow colors are switched by "arcos-theme" for dark / light mode.)
+hl.config({
+    general = {
+        gaps_in = 5,
+        gaps_out = 10,
+        border_size = 1,
+        col = {
+            active_border = "rgba(3584e4cc)",
+            inactive_border = "rgba(ffffff22)",
+        },
+        resize_on_border = true,
+        allow_tearing = false,
+        layout = "dwindle",
+    },
 
-decoration {
-    rounding = 14
+    decoration = {
+        rounding = 14,
+        rounding_power = 2,
+        active_opacity = 1.0,
+        inactive_opacity = 1.0,
 
-    # Frosted-glass blur. If the desktop feels slow, set "enabled = false".
-    blur {
-        enabled = true
-        size = 6
-        passes = 2
-        vibrancy = 0.15
-        new_optimizations = true
-        ignore_opacity = true
-    }
+        shadow = {
+            enabled = true,
+            range = 24,
+            render_power = 3,
+            color = 0x66000000,
+        },
 
-    shadow {
-        enabled = true
-        range = 24
-        render_power = 3
-        color = $shadow_color
-    }
-}
+        -- Frosted-glass blur. If the desktop feels slow, set enabled = false.
+        blur = {
+            enabled = true,
+            size = 6,
+            passes = 2,
+            vibrancy = 0.15,
+        },
+    },
 
-animations {
-    enabled = true
-    bezier = ease, 0.25, 0.1, 0.25, 1.0
-    bezier = pop, 0.05, 0.9, 0.1, 1.05
-    animation = windows, 1, 5, pop, popin 90%
-    animation = windowsOut, 1, 4, ease, popin 90%
-    animation = fade, 1, 4, ease
-    animation = layers, 1, 4, ease, fade
-    animation = workspaces, 1, 5, ease, slide
-}
+    animations = {
+        enabled = true,
+    },
+})
 
-dwindle {
-    pseudotile = true
-    preserve_split = true
-}
+-- Animations (smooth and soft, like macOS)
+hl.curve("easeOutQuint", { type = "bezier", points = { {0.23, 1}, {0.32, 1} } })
+hl.curve("easeInOutCubic", { type = "bezier", points = { {0.65, 0.05}, {0.36, 1} } })
+hl.curve("linear", { type = "bezier", points = { {0, 0}, {1, 1} } })
+hl.curve("almostLinear", { type = "bezier", points = { {0.5, 0.5}, {0.75, 1} } })
+hl.curve("quick", { type = "bezier", points = { {0.15, 0}, {0.1, 1} } })
+hl.curve("easy", { type = "spring", mass = 1, stiffness = 238.1191, damping = 24.21279333 })
 
-misc {
-    disable_hyprland_logo = true
-    disable_splash_rendering = true
-    force_default_wallpaper = 0
-    vfr = true
-}
+hl.animation({ leaf = "global", enabled = true, speed = 10, bezier = "default" })
+hl.animation({ leaf = "border", enabled = true, speed = 5.39, bezier = "easeOutQuint" })
+hl.animation({ leaf = "windows", enabled = true, speed = 4.79, spring = "easy" })
+hl.animation({ leaf = "windowsIn", enabled = true, speed = 4.1, spring = "easy", style = "popin 87%" })
+hl.animation({ leaf = "windowsOut", enabled = true, speed = 1.49, bezier = "linear", style = "popin 87%" })
+hl.animation({ leaf = "fadeIn", enabled = true, speed = 1.73, bezier = "almostLinear" })
+hl.animation({ leaf = "fadeOut", enabled = true, speed = 1.46, bezier = "almostLinear" })
+hl.animation({ leaf = "fade", enabled = true, speed = 3.03, bezier = "quick" })
+hl.animation({ leaf = "layers", enabled = true, speed = 3.81, bezier = "easeOutQuint" })
+hl.animation({ leaf = "layersIn", enabled = true, speed = 4, bezier = "easeOutQuint", style = "fade" })
+hl.animation({ leaf = "layersOut", enabled = true, speed = 1.5, bezier = "linear", style = "fade" })
+hl.animation({ leaf = "fadeLayersIn", enabled = true, speed = 1.79, bezier = "almostLinear" })
+hl.animation({ leaf = "fadeLayersOut", enabled = true, speed = 1.39, bezier = "almostLinear" })
+hl.animation({ leaf = "workspaces", enabled = true, speed = 1.94, bezier = "almostLinear", style = "fade" })
+hl.animation({ leaf = "workspacesIn", enabled = true, speed = 1.21, bezier = "almostLinear", style = "fade" })
+hl.animation({ leaf = "workspacesOut", enabled = true, speed = 1.94, bezier = "almostLinear", style = "fade" })
 
-cursor {
-    no_hardware_cursors = 1
-}
+hl.config({
+    dwindle = {
+        preserve_split = true,
+    },
+})
 
-input {
-    kb_layout = us
-    follow_mouse = 1
-    sensitivity = 0
-    touchpad {
-        natural_scroll = true
-    }
-}
+hl.config({
+    misc = {
+        force_default_wallpaper = 0,    -- no built-in wallpapers: ArcOS Sonora has its own
+        disable_hyprland_logo = true,
+        disable_splash_rendering = true,
+    },
+})
 
-# --- Window and layer rules (all windows float, like a normal desktop) ----
-@WINDOW_RULES@
+hl.config({
+    input = {
+        kb_layout = "us",
+        follow_mouse = 1,
+        sensitivity = 0,
+        touchpad = {
+            natural_scroll = true,
+        },
+    },
+})
 
-# --- Keyboard shortcuts -----------------------------------------------------
-bind = $mainMod, SPACE, exec, $launcher                  # open the launcher
-bind = $mainMod, RETURN, exec, $terminal                 # terminal
-bind = $mainMod, E, exec, $files                         # files
-bind = $mainMod, B, exec, $browser                       # web browser
-bind = $mainMod, Q, killactive                           # close the window
-bind = $mainMod, F, fullscreen, 0                        # fullscreen
-bind = $mainMod, T, togglefloating                       # float / tile a window
-bind = $mainMod, TAB, cyclenext                          # next window
-bind = ALT, TAB, cyclenext
-bind = $mainMod, L, exec, hyprlock                       # lock the screen
-bind = $mainMod, V, exec, cliphist list | fuzzel --dmenu | cliphist decode | wl-copy
-bind = $mainMod SHIFT, D, exec, arcos-theme toggle      # dark / light mode
-bind = $mainMod SHIFT, S, exec, grim -g "$(slurp)" - | wl-copy
-bind = $mainMod SHIFT, 3, exec, grim ~/Pictures/Screenshot-$(date +%F-%H%M%S).png
-bind = $mainMod SHIFT, M, exit                           # log out
+-- --- Window and layer rules ----------------------------------------------
+-- All windows float, like on a normal desktop (press SUPER + T to tile one).
+hl.window_rule({
+    name = "arcos-float-all",
+    match = { class = ".*" },
+    float = true,
+})
 
-bind = $mainMod, 1, workspace, 1
-bind = $mainMod, 2, workspace, 2
-bind = $mainMod, 3, workspace, 3
-bind = $mainMod, 4, workspace, 4
-bind = $mainMod SHIFT, 1, movetoworkspace, 1
-bind = $mainMod SHIFT, 2, movetoworkspace, 2
-bind = $mainMod SHIFT, 4, movetoworkspace, 4
+hl.window_rule({
+    name = "arcos-center-all",
+    match = { class = ".*" },
+    center = true,
+})
 
-# Move and resize windows with the mouse while holding the SUPER key
-bindm = $mainMod, mouse:272, movewindow
-bindm = $mainMod, mouse:273, resizewindow
+hl.window_rule({
+    name = "suppress-maximize-events",
+    match = { class = ".*" },
+    suppress_event = "maximize",
+})
 
-# Volume and brightness keys
-bindel = , XF86AudioRaiseVolume, exec, wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+
-bindel = , XF86AudioLowerVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
-bindl  = , XF86AudioMute, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
-bindel = , XF86MonBrightnessUp, exec, brightnessctl set 5%+
-bindel = , XF86MonBrightnessDown, exec, brightnessctl set 5%-
-HYPRCONF_EOF
-HYPRCONF="${HYPRCONF//@WINDOW_RULES@/$WINDOW_RULES}"
-printf '%s\n' "$HYPRCONF" > "$CONF/hypr/hyprland.conf"
+hl.window_rule({
+    name = "fix-xwayland-drags",
+    match = {
+        class = "^$",
+        title = "^$",
+        xwayland = true,
+        float = true,
+        fullscreen = false,
+        pin = false,
+    },
+    no_focus = true,
+})
+
+-- Frosted glass behind the top bar, launcher, notifications and dock
+hl.layer_rule({
+    name = "arcos-glass",
+    match = { namespace = "^(waybar|launcher|notifications|nwg-dock.*)$" },
+    blur = true,
+    ignore_alpha = 0.2,
+})
+
+-- --- Keyboard shortcuts -----------------------------------------------------
+hl.bind(mainMod .. " + SPACE", hl.dsp.exec_cmd(launcher))          -- open the launcher
+hl.bind(mainMod .. " + RETURN", hl.dsp.exec_cmd(terminal))         -- terminal
+hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager))           -- files
+hl.bind(mainMod .. " + B", hl.dsp.exec_cmd(browser))               -- web browser
+hl.bind(mainMod .. " + Q", hl.dsp.window.close())                  -- close the window
+hl.bind(mainMod .. " + T", hl.dsp.window.float({ action = "toggle" }))  -- float / tile
+hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("hyprlock"))            -- lock the screen
+hl.bind(mainMod .. " + V", hl.dsp.exec_cmd("cliphist list | fuzzel --dmenu | cliphist decode | wl-copy"))
+hl.bind(mainMod .. " + SHIFT + D", hl.dsp.exec_cmd("arcos-theme toggle"))   -- dark / light mode
+hl.bind(mainMod .. " + SHIFT + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | wl-copy'))
+hl.bind(mainMod .. " + SHIFT + A", hl.dsp.exec_cmd("grim ~/Pictures/Screenshot-$(date +%F-%H%M%S).png"))
+hl.bind(mainMod .. " + SHIFT + M", hl.dsp.exit())                  -- log out
+
+bind_safe(mainMod .. " + F", function() return hl.dsp.window.fullscreen() end)
+bind_safe(mainMod .. " + TAB", function() return hl.dsp.window.cycle_next() end)
+bind_safe("ALT + TAB", function() return hl.dsp.window.cycle_next() end)
+
+-- Move focus with the arrow keys
+hl.bind(mainMod .. " + left", hl.dsp.focus({ direction = "left" }))
+hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "right" }))
+hl.bind(mainMod .. " + up", hl.dsp.focus({ direction = "up" }))
+hl.bind(mainMod .. " + down", hl.dsp.focus({ direction = "down" }))
+
+-- Workspaces: SUPER + 1..5 to switch, SUPER + SHIFT + 1..5 to send a window there
+for i = 1, 5 do
+    hl.bind(mainMod .. " + " .. i, hl.dsp.focus({ workspace = i }))
+    hl.bind(mainMod .. " + SHIFT + " .. i, hl.dsp.window.move({ workspace = i }))
+end
+
+-- Move and resize windows with the mouse while holding SUPER
+hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(), { mouse = true })
+hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
+
+-- Volume and brightness keys
+hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true })
+hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"), { locked = true, repeating = true })
+hl.bind("XF86AudioMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"), { locked = true, repeating = true })
+hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%+"), { locked = true, repeating = true })
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%-"), { locked = true, repeating = true })
+HYPRLUA_EOF
 
 # Idle: screen off after 10 min, lock after 15 min
 cat > "$CONF/hypr/hypridle.conf" <<'EOF'
@@ -403,10 +455,9 @@ image {
 }
 EOF
 
-  cat > "$d/hypr-colors.conf" <<EOF
-# Colors for $1 mode (written by arcos-theme)
-\$border_inactive = $INACTIVE_BORDER
-\$shadow_color = $SHADOW
+  # Window border + shadow colors, applied live with "hyprctl eval"
+  cat > "$d/hypr.lua" <<EOF
+hl.config({ general = { col = { inactive_border = "$INACTIVE_BORDER" } }, decoration = { shadow = { color = $SHADOW } } })
 EOF
 }
 
@@ -416,7 +467,7 @@ TIP_BG="rgba(24, 26, 46, 0.92)";  TIP_BORDER="rgba(255, 255, 255, 0.14)"
 FZ_BG="1b1d33e6"; FZ_TEXT="ffffffff"; FZ_BORDER="ffffff33"; ICON_THEME="Papirus-Dark"
 MAKO_BG="#1b1d33e6"; MAKO_TEXT="#ffffff"; MAKO_BORDER="#ffffff33"
 DOCK_BG="rgba(30, 32, 56, 0.55)"; DOCK_BORDER="rgba(255, 255, 255, 0.14)"; DOCK_HOVER="rgba(255, 255, 255, 0.14)"
-INACTIVE_BORDER="rgba(ffffff22)"; SHADOW="rgba(00000066)"
+INACTIVE_BORDER="rgba(ffffff22)"; SHADOW="0x66000000"
 make_theme dark
 
 # Light mode
@@ -425,7 +476,7 @@ TIP_BG="rgba(248, 249, 253, 0.95)"; TIP_BORDER="rgba(0, 0, 0, 0.12)"
 FZ_BG="f7f8fce6"; FZ_TEXT="1c1c28ff"; FZ_BORDER="00000022"; ICON_THEME="Papirus-Light"
 MAKO_BG="#f7f8fce6"; MAKO_TEXT="#1c1c28"; MAKO_BORDER="#00000022"
 DOCK_BG="rgba(255, 255, 255, 0.55)"; DOCK_BORDER="rgba(0, 0, 0, 0.10)"; DOCK_HOVER="rgba(0, 0, 0, 0.08)"
-INACTIVE_BORDER="rgba(00000022)"; SHADOW="rgba(00000033)"
+INACTIVE_BORDER="rgba(00000022)"; SHADOW="0x33000000"
 make_theme light
 
 # New users start in dark mode
@@ -433,7 +484,6 @@ cp "$THEMES/dark/waybar-colors.css" "$CONF/waybar/colors.css"
 cp "$THEMES/dark/fuzzel.ini"        "$CONF/fuzzel/fuzzel.ini"
 cp "$THEMES/dark/mako.conf"         "$CONF/mako/config"
 cp "$THEMES/dark/dock.css"          "$CONF/nwg-dock-hyprland/style.css"
-cp "$THEMES/dark/hypr-colors.conf"  "$CONF/hypr/colors.conf"
 echo dark > "$CONF/arcos/mode"
 
 # ---------------------------------------------------------------------------
@@ -631,7 +681,6 @@ cp -f "$T/waybar-colors.css" "$CFG/waybar/colors.css"
 cp -f "$T/fuzzel.ini"        "$CFG/fuzzel/fuzzel.ini"
 cp -f "$T/mako.conf"         "$CFG/mako/config"
 cp -f "$T/dock.css"          "$CFG/nwg-dock-hyprland/style.css"
-cp -f "$T/hypr-colors.conf"  "$CFG/hypr/colors.conf"
 
 # What apps follow
 if [ "$MODE" = dark ]; then
@@ -660,7 +709,7 @@ if [ -n "${WAYLAND_DISPLAY:-}" ]; then
     pkill -x nwg-dock-hyprland
     (bash "$CFG/hypr/scripts/dock.sh" >/dev/null 2>&1 &)
   fi
-  hyprctl reload >/dev/null 2>&1
+  [ -f "$T/hypr.lua" ] && hyprctl eval "$(cat "$T/hypr.lua")" >/dev/null 2>&1
   pgrep -x waybar >/dev/null && pkill -RTMIN+8 waybar
 fi
 exit 0
@@ -677,14 +726,21 @@ if command -v systemd-detect-virt >/dev/null 2>&1 && systemd-detect-virt -q; the
   export AQ_NO_MODIFIERS=1
 fi
 
+# Newer Hyprland versions must be started through "start-hyprland"
+if command -v start-hyprland >/dev/null 2>&1; then
+  LAUNCH=start-hyprland
+else
+  LAUNCH=Hyprland
+fi
+
 START=$(date +%s)
-Hyprland "$@"
+$LAUNCH "$@"
 STATUS=$?
 
 if [ "$STATUS" -ne 0 ] && [ "$IN_VM" -eq 1 ] && [ $(( $(date +%s) - START )) -lt 15 ]; then
   export LIBGL_ALWAYS_SOFTWARE=1
   export WLR_RENDERER_ALLOW_SOFTWARE=1
-  exec Hyprland "$@"
+  exec $LAUNCH "$@"
 fi
 exit "$STATUS"
 ARCOS_SESSION
